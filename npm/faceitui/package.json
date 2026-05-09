@@ -1,0 +1,23 @@
+{
+  "name": "faceitui",
+  "version": "0.1.0",
+  "description": "FACEIT Stats TUI - Terminal-based FACEIT CS2 player statistics viewer",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cnaltn/Faceitui.git"
+  },
+  "bin": {
+    "faceitui": "./cli.js"
+  },
+  "scripts": {
+    "postinstall": "node install.js"
+  },
+  "files": [
+    "cli.js",
+    "install.js",
+    "run.js"
+  ],
+  "os": ["win32", "darwin", "linux"],
+  "cpu": ["x64", "arm64"]
+}

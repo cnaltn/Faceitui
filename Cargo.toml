@@ -1,0 +1,23 @@
+[package]
+name = "faceit-stats-tui"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ratatui = "0.30"
+crossterm = "0.28"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "native-tls", "http2", "gzip", "brotli", "charset", "stream"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["arbitrary_precision"] }
+anyhow = "1.0"
+urlencoding = "2.1"
+arboard = "3.4"
+futures-util = "0.3.32"
+opaline = "0.4"
+tui-scrollview = "0.6"
+tui-banner = "0.2"
+
+[[bin]]
+name = "faceitui"
+path = "src/main.rs"

@@ -1,0 +1,8 @@
+src/
+target/
+.git/
+.github/
+*.json
+*.toml
+*.bat
+*.lock

@@ -48,11 +48,10 @@ function color(code, text) {
   return `\x1b[${code}m${text}\x1b[0m`;
 }
 
-function ok(msg)      { ewrite(`  ${color(32, 'ok')} ${msg}\n`); }
-function step(msg)    { ewrite(`  ${color(36, ' -')} ${msg}...`); }
-function fail(msg)    { ewrite(`  ${color(31, '!!')} ${msg}\n`); }
-function info(msg)    { ewrite(`     ${color(2, msg)}\n`); }
-function dim(msg)     { ewrite(color(2, msg)); }
+function ok(msg)      { ewrite(`  ${color('32', 'ok')} ${msg}\n`); }
+function fail(msg)    { ewrite(`  ${color('31', '!!')} ${msg}\n`); }
+function info(msg)    { ewrite(`     ${color('2', msg)}\n`); }
+function dim(msg)     { return color('2', msg); }
 
 function fmtSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -145,7 +144,7 @@ function platformLine() {
   const osNames = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
   const osName = osNames[process.platform] || process.platform;
   const archName = process.arch === 'x64' ? 'x86-64' : process.arch;
-  ewrite(`  ${color(33, '*')} ${color(97, 'Platform')}  ${osName} (${archName})  ${dim('->')}  ${dim(target)}\n\n`);
+  ewrite(`  ${color('33', '*')} ${color('37', 'Platform')}  ${osName} (${archName})  ${dim('->')}  ${dim(target)}\n\n`);
 }
 
 async function main() {

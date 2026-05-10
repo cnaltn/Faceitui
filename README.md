@@ -5,7 +5,7 @@
 `faceitui` is a TUI (Terminal User Interface) tool for viewing FACEIT CS2 player statistics right from your terminal.
 
 <p align="center">
-  <img src="screenshot.png" width="700" alt="faceitui screenshot">
+  <img src="EDE6367A-A5E3-4BE4-9EDA-F4B320588A59.png" width="700" alt="faceitui screenshot">
 </p>
 
 ## Features

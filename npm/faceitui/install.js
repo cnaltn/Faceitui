@@ -18,8 +18,8 @@ const platform = `${process.platform}-${process.arch}`;
 const target = PLATFORM_MAP[platform];
 
 if (!target) {
-  log('x', 'red', `Unsupported platform: ${platform}`);
-  log('i', 'dim', 'Supported: win32-x64, linux-x64, darwin-x64, darwin-arm64');
+  err('x', 'red', `Unsupported platform: ${platform}`);
+  err('i', 'dim', 'Supported: win32-x64, linux-x64, darwin-x64, darwin-arm64');
   process.exit(1);
 }
 
@@ -32,8 +32,6 @@ const repoUrl = 'https://github.com/cnaltn/Faceitui';
 const tag = `v${VERSION}`;
 const archiveName = `faceitui-${target}.${ext}`;
 const downloadUrl = `${repoUrl}/releases/download/${tag}/${archiveName}`;
-
-const out = process.stderr;
 
 const C = {
   reset:   '\x1b[0m',
@@ -52,16 +50,14 @@ function color(code, text) {
 
 const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
-function log(icon, clr, msg) {
-  const iconColors = {
-    green:  C.green,
-    red:    C.red,
-    cyan:   C.cyan,
-    yellow: C.yellow,
-    dim:    C.dim,
-  };
+function ewrite(s) {
+  fs.writeSync(2, s);
+}
+
+function err(icon, clr, msg) {
+  const iconColors = { green: C.green, red: C.red, cyan: C.cyan, yellow: C.yellow, dim: C.dim };
   const clrCode = iconColors[clr] || C.white;
-  out.write(`  ${clrCode}${icon}${C.reset} ${msg}\n`);
+  ewrite(`  ${clrCode}${icon}${C.reset} ${msg}\n`);
 }
 
 function progressBar(current, total, width) {
@@ -89,27 +85,26 @@ async function download(url, dest) {
     https.get(url, (response) => {
       if (response.statusCode === 302 || response.statusCode === 301) {
         file.close();
-        fs.unlinkSync(dest);
+        try { fs.unlinkSync(dest); } catch {}
         download(response.headers.location, dest).then(resolve).catch(reject);
         return;
       }
       if (response.statusCode !== 200) {
         file.close();
-        fs.unlinkSync(dest);
+        try { fs.unlinkSync(dest); } catch {}
         reject(new Error(`HTTP ${response.statusCode}`));
         return;
       }
 
       totalSize = parseInt(response.headers['content-length'], 10) || 0;
-      const displaySize = totalSize > 0 ? fmtSize(totalSize) : '?';
 
       spinnerTimer = setInterval(() => {
         const spinner = color(C.cyan, SPINNER[spinnerIdx]);
         const bar = totalSize > 0
           ? `[${progressBar(downloaded, totalSize, 20)}] ${Math.round((downloaded / totalSize) * 100)}%`
-          : ` ${fmtSize(downloaded)} / ${displaySize}`;
+          : ` ${fmtSize(downloaded)}`;
         const line = `  ${spinner} Downloading...  ${bar}`;
-        out.write(`\r${line}`);
+        ewrite(`\r${line}`);
         lastLogLine = line;
         spinnerIdx = (spinnerIdx + 1) % SPINNER.length;
       }, 80);
@@ -126,8 +121,8 @@ async function download(url, dest) {
         const bar = totalSize > 0
           ? `[${progressBar(totalSize, totalSize, 20)}] 100%`
           : ` ${fmtSize(downloaded)}`;
-        out.write(`\r${' '.repeat(lastLogLine.length)}\r`);
-        log('✓', 'green', `Downloaded (${fmtSize(downloaded)})  ${bar}`);
+        ewrite(`\r${' '.repeat(lastLogLine.length)}\r`);
+        err('✓', 'green', `Downloaded (${fmtSize(downloaded)})  ${bar}`);
         resolve();
       });
     }).on('error', (err) => {
@@ -148,28 +143,24 @@ function banner() {
     '    ██║     ██║  ██║╚██████╗███████╗██║   ██║   ╚██████╔╝██║',
     '    ╚═╝     ╚═╝  ╚═╝ ╚═════╝╚══════╝╚═╝   ╚═╝    ╚═════╝ ╚═╝',
   ];
-  out.write('\n');
+  ewrite('\n');
   for (const line of lines) {
     let colored = '';
     for (const ch of line) {
-      if (ch === ' ' || ch === '\n') {
-        colored += ch;
-      } else {
-        colored += color(C.cyan, ch);
-      }
+      colored += (ch === ' ') ? ' ' : color(C.cyan, ch);
     }
-    out.write(colored + '\n');
+    ewrite(colored + '\n');
   }
-  out.write('\n');
-  out.write(color(C.bold, `     FACEIT CS2 Stats TUI  —  ${color(C.dim, 'v' + VERSION)}`));
-  out.write('\n\n');
+  ewrite('\n');
+  ewrite(color(C.bold, `     FACEIT CS2 Stats TUI  —  ${color(C.dim, 'v' + VERSION)}`));
+  ewrite('\n\n');
 }
 
 function platformLine() {
   const osNames = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
   const osName = osNames[process.platform] || process.platform;
   const archName = process.arch === 'x64' ? 'x86-64' : process.arch;
-  out.write(`  ${color(C.yellow, '◉')} ${color(C.white, 'Platform')}  ${osName} (${archName})  ${color(C.dim, '\u2192')}  ${color(C.dim, target)}\n\n`);
+  ewrite(`  ${color(C.yellow, '◉')} ${color(C.white, 'Platform')}  ${osName} (${archName})  ${color(C.dim, '→')}  ${color(C.dim, target)}\n\n`);
 }
 
 async function main() {
@@ -185,12 +176,12 @@ async function main() {
   try {
     await download(downloadUrl, tempArchive);
   } catch (err) {
-    log('✗', 'red', `Download failed: ${err.message}`);
-    log('i', 'dim', `Release URL: ${repoUrl}/releases/tag/${tag}`);
+    err('✗', 'red', `Download failed: ${err.message}`);
+    err('i', 'dim', `Release URL: ${repoUrl}/releases/tag/${tag}`);
     process.exit(1);
   }
 
-  log('✓', 'green', 'Extracting...');
+  err('✓', 'green', 'Extracting...');
 
   if (isWindows) {
     try {
@@ -199,7 +190,7 @@ async function main() {
       try {
         execSync(`tar -xf "${tempArchive}" -C "${BIN_DIR}"`, { stdio: 'pipe' });
       } catch {
-        log('✗', 'red', 'Failed to extract. Install 7-Zip or enable tar on Windows.');
+        err('✗', 'red', 'Failed to extract. Install 7-Zip or enable tar on Windows.');
         process.exit(1);
       }
     }
@@ -209,7 +200,7 @@ async function main() {
 
   const binaryPath = path.join(BIN_DIR, binaryName);
   if (!fs.existsSync(binaryPath)) {
-    log('✗', 'red', 'Binary not found after extraction.');
+    err('✗', 'red', 'Binary not found after extraction.');
     process.exit(1);
   }
 
@@ -218,10 +209,9 @@ async function main() {
   }
 
   fs.unlinkSync(tempArchive);
-  fs.writeFileSync(path.join(BIN_DIR, '.installed'), '');
 
-  log('✓', 'green', 'Installed!');
-  out.write(`\n  ${color(C.cyan, '\u25b8')} run: ${color(C.bold, 'faceitui')}\n\n`);
+  err('✓', 'green', 'Installed!');
+  ewrite(`\n  ${color(C.cyan, '▸')} run: ${color(C.bold, 'faceitui')}\n\n`);
 }
 
 main();

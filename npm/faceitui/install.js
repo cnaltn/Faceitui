@@ -218,6 +218,7 @@ async function main() {
   }
 
   fs.unlinkSync(tempArchive);
+  fs.writeFileSync(path.join(BIN_DIR, '.installed'), '');
 
   log('✓', 'green', 'Installed!');
   out.write(`\n  ${color(C.cyan, '\u25b8')} run: ${color(C.bold, 'faceitui')}\n\n`);

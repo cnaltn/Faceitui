@@ -1,6 +1,6 @@
 {
   "name": "faceitui",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "FACEIT Stats TUI - Terminal-based FACEIT CS2 player statistics viewer",
   "license": "MIT",
   "repository": {

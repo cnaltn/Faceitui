@@ -2,3 +2,4 @@
 config.toml
 build_personal.bat
 /*.json
+npm/faceitui/bin/

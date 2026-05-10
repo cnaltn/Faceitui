@@ -33,6 +33,8 @@ const tag = `v${VERSION}`;
 const archiveName = `faceitui-${target}.${ext}`;
 const downloadUrl = `${repoUrl}/releases/download/${tag}/${archiveName}`;
 
+const out = process.stderr;
+
 const C = {
   reset:   '\x1b[0m',
   bold:    '\x1b[1m',
@@ -59,7 +61,7 @@ function log(icon, clr, msg) {
     dim:    C.dim,
   };
   const clrCode = iconColors[clr] || C.white;
-  process.stdout.write(`  ${clrCode}${icon}${C.reset} ${msg}\n`);
+  out.write(`  ${clrCode}${icon}${C.reset} ${msg}\n`);
 }
 
 function progressBar(current, total, width) {
@@ -107,7 +109,7 @@ async function download(url, dest) {
           ? `[${progressBar(downloaded, totalSize, 20)}] ${Math.round((downloaded / totalSize) * 100)}%`
           : ` ${fmtSize(downloaded)} / ${displaySize}`;
         const line = `  ${spinner} Downloading...  ${bar}`;
-        process.stdout.write(`\r${line}`);
+        out.write(`\r${line}`);
         lastLogLine = line;
         spinnerIdx = (spinnerIdx + 1) % SPINNER.length;
       }, 80);
@@ -124,7 +126,7 @@ async function download(url, dest) {
         const bar = totalSize > 0
           ? `[${progressBar(totalSize, totalSize, 20)}] 100%`
           : ` ${fmtSize(downloaded)}`;
-        process.stdout.write(`\r${' '.repeat(lastLogLine.length)}\r`);
+        out.write(`\r${' '.repeat(lastLogLine.length)}\r`);
         log('✓', 'green', `Downloaded (${fmtSize(downloaded)})  ${bar}`);
         resolve();
       });
@@ -146,7 +148,7 @@ function banner() {
     '    ██║     ██║  ██║╚██████╗███████╗██║   ██║   ╚██████╔╝██║',
     '    ╚═╝     ╚═╝  ╚═╝ ╚═════╝╚══════╝╚═╝   ╚═╝    ╚═════╝ ╚═╝',
   ];
-  process.stdout.write('\n');
+  out.write('\n');
   for (const line of lines) {
     let colored = '';
     for (const ch of line) {
@@ -156,18 +158,18 @@ function banner() {
         colored += color(C.cyan, ch);
       }
     }
-    process.stdout.write(colored + '\n');
+    out.write(colored + '\n');
   }
-  process.stdout.write('\n');
-  process.stdout.write(color(C.bold, `     FACEIT CS2 Stats TUI  —  ${color(C.dim, 'v' + VERSION)}`));
-  process.stdout.write('\n\n');
+  out.write('\n');
+  out.write(color(C.bold, `     FACEIT CS2 Stats TUI  —  ${color(C.dim, 'v' + VERSION)}`));
+  out.write('\n\n');
 }
 
 function platformLine() {
   const osNames = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
   const osName = osNames[process.platform] || process.platform;
   const archName = process.arch === 'x64' ? 'x86-64' : process.arch;
-  process.stdout.write(`  ${color(C.yellow, '◉')} ${color(C.white, 'Platform')}  ${osName} (${archName})  ${color(C.dim, '\u2192')}  ${color(C.dim, target)}\n\n`);
+  out.write(`  ${color(C.yellow, '◉')} ${color(C.white, 'Platform')}  ${osName} (${archName})  ${color(C.dim, '\u2192')}  ${color(C.dim, target)}\n\n`);
 }
 
 async function main() {
@@ -218,7 +220,7 @@ async function main() {
   fs.unlinkSync(tempArchive);
 
   log('✓', 'green', 'Installed!');
-  process.stdout.write(`\n  ${color(C.cyan, '\u25b8')} run: ${color(C.bold, 'faceitui')}\n\n`);
+  out.write(`\n  ${color(C.cyan, '\u25b8')} run: ${color(C.bold, 'faceitui')}\n\n`);
 }
 
 main();

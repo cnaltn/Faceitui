@@ -25,7 +25,7 @@ pub async fn analyze_player_streaming(
     lifetime_summary: &str,
     maps_summary: &str,
     matches_summary: &str,
-    tx: mpsc::UnboundedSender<String>,
+    tx: mpsc::UnboundedSender<Result<String, String>>,
     ai_key: Option<String>,
 ) -> Result<()> {
     let system_prompt = "You are a professional CS2 analyst. Provide sharp, insightful commentary in Turkish. Keep it concise (max 5 sentences). Focus on strengths, weaknesses, and notable patterns. Use stats to back your claims.";
@@ -62,12 +62,18 @@ pub async fn analyze_player_streaming(
         req = req.header("Authorization", format!("Bearer {}", ai_key));
     }
 
-    let resp = req.send().await?;
+    let resp = req.send().await
+        .map_err(|e| {
+            let _ = tx.send(Err(format!("Connection failed: {}", e)));
+            anyhow::anyhow!("{}", e)
+        })?;
     let status = resp.status();
 
     if !status.is_success() {
         let text = resp.text().await.unwrap_or_default();
-        anyhow::bail!("AI API error ({}): {}", status, &text[..text.len().min(300)]);
+        let msg = format!("AI API error ({}): {}", status, &text[..text.len().min(300)]);
+        let _ = tx.send(Err(msg.clone()));
+        anyhow::bail!("{}", msg);
     }
 
     let mut stream = resp.bytes_stream();
@@ -94,7 +100,7 @@ pub async fn analyze_player_streaming(
                 }
                 if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
                     if let Some(content) = parsed["choices"][0]["delta"]["content"].as_str() {
-                        let _ = tx.send(content.to_string());
+                        let _ = tx.send(Ok(content.to_string()));
                     }
                 }
             }

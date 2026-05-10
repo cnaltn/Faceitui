@@ -87,6 +87,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         if app.show_ai_key_popup {
             render_ai_key_popup(frame, area, app);
         }
+        if app.ai_error.is_some() {
+            render_ai_error_popup(frame, area, app);
+        }
         return;
     }
 
@@ -119,6 +122,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     }
     if app.show_ai_key_popup {
         render_ai_key_popup(frame, frame.area(), app);
+    }
+    if app.ai_error.is_some() {
+        render_ai_error_popup(frame, frame.area(), app);
     }
     render_toasts(frame, area, app);
 }
@@ -194,6 +200,9 @@ fn render_welcome(frame: &mut Frame, area: Rect, app: &mut App) {
     }
     if app.show_ai_key_popup {
         render_ai_key_popup(frame, area, app);
+    }
+    if app.ai_error.is_some() {
+        render_ai_error_popup(frame, area, app);
     }
 
     render_footer(frame, chunks[2], app);
@@ -546,6 +555,9 @@ fn render_tabs(frame: &mut Frame, area: Rect, app: &mut App) {
         }
     } else if let Some(response) = &app.ai_response {
         render_ai_popup(frame, area, response, &mut app.ai_sv, false, &app.theme);
+    }
+    if app.ai_error.is_some() {
+        render_ai_error_popup(frame, area, app);
     }
     if app.show_ai_key_popup {
         render_ai_key_popup(frame, area, app);
@@ -1154,6 +1166,45 @@ fn render_help_popup(frame: &mut Frame, area: Rect, theme: &AppTheme) {
     frame.render_widget(help, inner);
 }
 
+fn render_ai_error_popup(frame: &mut Frame, area: Rect, app: &mut App) {
+    let err_msg = app.ai_error.as_deref().unwrap_or("Unknown error");
+    let is_auth = err_msg.contains("401") || err_msg.contains("403") || err_msg.contains("Invalid");
+    let popup_h = if is_auth { 40 } else { 28 };
+
+    let popup_area = centered_rect(55, popup_h, area);
+    frame.render_widget(Clear, popup_area);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(app.theme.error()))
+        .bg(app.theme.panel_bg())
+        .title(Line::from(vec![Span::styled(" AI Error ", Style::default().fg(app.theme.error()).bold())]));
+    frame.render_widget(block.clone(), popup_area);
+    let inner = block.inner(popup_area).inner(Margin { horizontal: 2, vertical: 1 });
+
+    let mut lines = vec![
+        Line::from(""),
+        Line::from(vec![Span::styled(clean_ai_error(err_msg), Style::default().fg(app.theme.fg()))]),
+        Line::from(""),
+    ];
+
+    if is_auth {
+        lines.push(Line::from(vec![
+            Span::styled("Enter", Style::default().fg(app.theme.accent())),
+            Span::styled(" re-enter key  ", Style::default().fg(app.theme.muted())),
+            Span::styled("Esc", Style::default().fg(app.theme.accent())),
+            Span::styled(" dismiss", Style::default().fg(app.theme.muted())),
+        ]));
+    } else {
+        lines.push(Line::from(vec![
+            Span::styled("Esc", Style::default().fg(app.theme.accent())),
+            Span::styled(" dismiss", Style::default().fg(app.theme.muted())),
+        ]));
+    }
+
+    let msg = Paragraph::new(lines).bg(app.theme.panel_bg()).alignment(Alignment::Center);
+    frame.render_widget(msg, inner);
+}
+
 fn render_ai_key_popup(frame: &mut Frame, area: Rect, app: &mut App) {
     let popup_area = centered_rect(50, 30, area);
     frame.render_widget(Clear, popup_area);
@@ -1353,5 +1404,24 @@ fn clean_error_msg(raw: &str) -> String {
         "Network error. Check your internet".into()
     } else {
         format!("Something went wrong")
+    }
+}
+
+fn clean_ai_error(raw: &str) -> String {
+    let lower = raw.to_lowercase();
+    if lower.contains("401") || lower.contains("unauthorized") || lower.contains("invalid") {
+        "Invalid AI API key. Press Enter to re-enter key.".into()
+    } else if lower.contains("403") || lower.contains("forbidden") {
+        "Access denied. Check your API key permissions.".into()
+    } else if lower.contains("429") || lower.contains("rate limit") {
+        "Too many requests. Wait a moment.".into()
+    } else if lower.contains("timeout") || lower.contains("timed out") {
+        "Request timed out. Check your connection.".into()
+    } else if lower.contains("connection") || lower.contains("dns") || lower.contains("resolve") {
+        "Network error. Check your internet.".into()
+    } else if raw.len() > 80 {
+        format!("{}...", &raw[..80])
+    } else {
+        raw.to_string()
     }
 }

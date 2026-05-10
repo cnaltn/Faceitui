@@ -87,6 +87,7 @@ pub struct App {
     pub ai_loading: bool,
     pub ai_sv: ScrollViewState,
     pub ai_partial: String,
+    pub ai_error: Option<String>,
     pub theme_names: Vec<String>,
     pub theme_index: usize,
     pub show_theme_selector: bool,
@@ -96,7 +97,7 @@ pub struct App {
     pub ai_key_input: String,
     pub ai_key: Option<String>,
     #[allow(dead_code)]
-    ai_rx: Option<mpsc::UnboundedReceiver<String>>,
+    ai_rx: Option<mpsc::UnboundedReceiver<Result<String, String>>>,
 }
 
 const SPINNER: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -147,6 +148,7 @@ impl App {
             ai_loading: false,
             ai_sv: ScrollViewState::new(),
             ai_partial: String::new(),
+            ai_error: None,
             theme_names,
             theme_index,
             show_theme_selector: false,
@@ -167,8 +169,15 @@ impl App {
             let mut closed = false;
             loop {
                 match rx.try_recv() {
-                    Ok(chunk) => {
+                    Ok(Ok(chunk)) => {
                         self.ai_partial.push_str(&chunk);
+                    }
+                    Ok(Err(err)) => {
+                        self.ai_error = Some(err);
+                        self.ai_loading = false;
+                        self.ai_rx = None;
+                        self.ai_partial.clear();
+                        return;
                     }
                     Err(mpsc::error::TryRecvError::Empty) => break,
                     Err(mpsc::error::TryRecvError::Disconnected) => {
@@ -299,6 +308,27 @@ impl App {
             return Ok(false);
         }
 
+        if self.ai_error.is_some() {
+            match key.code {
+                KeyCode::Esc => {
+                    self.ai_error = None;
+                }
+                KeyCode::Enter => {
+                    let is_auth_err = self.ai_error.as_ref()
+                        .map(|e| e.contains("401") || e.contains("403") || e.contains("Invalid"))
+                        .unwrap_or(false);
+                    self.ai_error = None;
+                    if is_auth_err {
+                        self.ai_key = None;
+                        self.ai_key_input.clear();
+                        self.show_ai_key_popup = true;
+                    }
+                }
+                _ => {}
+            }
+            return Ok(false);
+        }
+
         if self.show_match_popup {
             match key.code {
                 KeyCode::Esc | KeyCode::Enter => self.show_match_popup = false,
@@ -388,6 +418,8 @@ impl App {
                     self.show_match_popup = false;
                     self.show_map_popup = false;
                     self.show_help = false;
+                    self.show_ai_key_popup = false;
+                    self.ai_error = None;
                 }
                 KeyCode::Char('q') | KeyCode::Char('Q') => return Ok(true),
                 KeyCode::Char('i') | KeyCode::Char('I') => {
@@ -706,9 +738,7 @@ impl App {
         let ai_key = self.ai_key.clone();
 
         tokio::spawn(async move {
-            if let Err(e) = crate::ai::analyze_player_streaming(&name, &lifetime, &maps, &matches_text, tx, ai_key).await {
-                eprintln!("AI streaming error: {}", e);
-            }
+            let _ = crate::ai::analyze_player_streaming(&name, &lifetime, &maps, &matches_text, tx, ai_key).await;
         });
     }
 

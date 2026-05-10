@@ -196,7 +196,16 @@ async function main() {
   fs.unlinkSync(tempArchive);
 
   ok('Installed!');
-  ewrite(`\n  ${color(36, '>')} run: \x1b[1mfaceitui\x1b[0m\n\n`);
+  ewrite(`\n  ${color('36', '>')} run: \x1b[1mfaceitui\x1b[0m\n\n`);
+
+  try {
+    execSync('npm config set foreground-scripts true', { stdio: 'pipe' });
+  } catch {}
+
+  process.exit(0);
 }
 
-main();
+main().catch((err) => {
+  fail(`Unexpected error: ${err.message}`);
+  process.exit(1);
+});

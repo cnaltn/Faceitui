@@ -18,12 +18,19 @@ const platform = `${process.platform}-${process.arch}`;
 const target = PLATFORM_MAP[platform];
 
 if (!target) {
-  err('x', 'red', `Unsupported platform: ${platform}`);
-  err('i', 'dim', 'Supported: win32-x64, linux-x64, darwin-x64, darwin-arm64');
+  fail(`Unsupported platform: ${platform}`);
+  info('Supported: win32-x64, linux-x64, darwin-x64, darwin-arm64');
   process.exit(1);
 }
 
 const isWindows = process.platform === 'win32';
+
+if (isWindows) {
+  try {
+    execSync('chcp 65001', { stdio: 'pipe' });
+  } catch {}
+}
+
 const ext = isWindows ? 'zip' : 'tar.gz';
 const downloadExt = isWindows ? '.zip' : '.tar.gz';
 const binaryName = `faceitui${isWindows ? '.exe' : ''}`;
@@ -33,39 +40,19 @@ const tag = `v${VERSION}`;
 const archiveName = `faceitui-${target}.${ext}`;
 const downloadUrl = `${repoUrl}/releases/download/${tag}/${archiveName}`;
 
-const C = {
-  reset:   '\x1b[0m',
-  bold:    '\x1b[1m',
-  dim:     '\x1b[2m',
-  cyan:    '\x1b[36m',
-  green:   '\x1b[32m',
-  yellow:  '\x1b[33m',
-  red:     '\x1b[31m',
-  white:   '\x1b[97m',
-};
-
-function color(code, text) {
-  return code + text + C.reset;
-}
-
-const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-
 function ewrite(s) {
   fs.writeSync(2, s);
 }
 
-function err(icon, clr, msg) {
-  const iconColors = { green: C.green, red: C.red, cyan: C.cyan, yellow: C.yellow, dim: C.dim };
-  const clrCode = iconColors[clr] || C.white;
-  ewrite(`  ${clrCode}${icon}${C.reset} ${msg}\n`);
+function color(code, text) {
+  return `\x1b[${code}m${text}\x1b[0m`;
 }
 
-function progressBar(current, total, width) {
-  const pct = Math.min(current / total, 1);
-  const filled = Math.round(pct * width);
-  const empty = width - filled;
-  return `${C.cyan}${'█'.repeat(filled)}${C.dim}${'░'.repeat(empty)}${C.reset}`;
-}
+function ok(msg)      { ewrite(`  ${color(32, 'ok')} ${msg}\n`); }
+function step(msg)    { ewrite(`  ${color(36, ' -')} ${msg}...`); }
+function fail(msg)    { ewrite(`  ${color(31, '!!')} ${msg}\n`); }
+function info(msg)    { ewrite(`     ${color(2, msg)}\n`); }
+function dim(msg)     { ewrite(color(2, msg)); }
 
 function fmtSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -78,9 +65,8 @@ async function download(url, dest) {
     const file = fs.createWriteStream(dest);
     let downloaded = 0;
     let totalSize = 0;
-    let spinnerIdx = 0;
     let spinnerTimer = null;
-    let lastLogLine = '';
+    const start = Date.now();
 
     https.get(url, (response) => {
       if (response.statusCode === 302 || response.statusCode === 301) {
@@ -99,15 +85,17 @@ async function download(url, dest) {
       totalSize = parseInt(response.headers['content-length'], 10) || 0;
 
       spinnerTimer = setInterval(() => {
-        const spinner = color(C.cyan, SPINNER[spinnerIdx]);
-        const bar = totalSize > 0
-          ? `[${progressBar(downloaded, totalSize, 20)}] ${Math.round((downloaded / totalSize) * 100)}%`
-          : ` ${fmtSize(downloaded)}`;
-        const line = `  ${spinner} Downloading...  ${bar}`;
-        ewrite(`\r${line}`);
-        lastLogLine = line;
-        spinnerIdx = (spinnerIdx + 1) % SPINNER.length;
-      }, 80);
+        let bar = '';
+        if (totalSize > 0) {
+          const pct = Math.min(downloaded / totalSize, 1);
+          const w = 24;
+          const filled = Math.round(pct * w);
+          bar = `[${'='.repeat(filled)}${' '.repeat(w - filled)}] ${Math.round(pct * 100)}%`;
+        } else {
+          bar = `${fmtSize(downloaded)} received`;
+        }
+        ewrite(`\r  ${color(36, 'downloading')}  ${bar}`);
+      }, 100);
 
       response.on('data', (chunk) => {
         downloaded += chunk.length;
@@ -118,11 +106,9 @@ async function download(url, dest) {
       file.on('finish', () => {
         clearInterval(spinnerTimer);
         file.close();
-        const bar = totalSize > 0
-          ? `[${progressBar(totalSize, totalSize, 20)}] 100%`
-          : ` ${fmtSize(downloaded)}`;
-        ewrite(`\r${' '.repeat(lastLogLine.length)}\r`);
-        err('✓', 'green', `Downloaded (${fmtSize(downloaded)})  ${bar}`);
+        const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+        ewrite(`\r${' '.repeat(60)}\r`);
+        ok(`Downloaded ${fmtSize(downloaded)} in ${elapsed}s`);
         resolve();
       });
     }).on('error', (err) => {
@@ -145,22 +131,21 @@ function banner() {
   ];
   ewrite('\n');
   for (const line of lines) {
-    let colored = '';
+    let out = '';
     for (const ch of line) {
-      colored += (ch === ' ') ? ' ' : color(C.cyan, ch);
+      out += (ch === ' ') ? ' ' : `\x1b[36m${ch}\x1b[0m`;
     }
-    ewrite(colored + '\n');
+    ewrite(out + '\n');
   }
   ewrite('\n');
-  ewrite(color(C.bold, `     FACEIT CS2 Stats TUI  —  ${color(C.dim, 'v' + VERSION)}`));
-  ewrite('\n\n');
+  ewrite(`\x1b[1m     FACEIT CS2 Stats TUI  -  \x1b[2mv${VERSION}\x1b[0m\x1b[0m\n\n`);
 }
 
 function platformLine() {
   const osNames = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
   const osName = osNames[process.platform] || process.platform;
   const archName = process.arch === 'x64' ? 'x86-64' : process.arch;
-  ewrite(`  ${color(C.yellow, '◉')} ${color(C.white, 'Platform')}  ${osName} (${archName})  ${color(C.dim, '→')}  ${color(C.dim, target)}\n\n`);
+  ewrite(`  ${color(33, '*')} ${color(97, 'Platform')}  ${osName} (${archName})  ${dim('->')}  ${dim(target)}\n\n`);
 }
 
 async function main() {
@@ -176,12 +161,13 @@ async function main() {
   try {
     await download(downloadUrl, tempArchive);
   } catch (err) {
-    err('✗', 'red', `Download failed: ${err.message}`);
-    err('i', 'dim', `Release URL: ${repoUrl}/releases/tag/${tag}`);
+    ewrite('\n');
+    fail(`Download failed: ${err.message}`);
+    info(`Release URL: ${repoUrl}/releases/tag/${tag}`);
     process.exit(1);
   }
 
-  err('✓', 'green', 'Extracting...');
+  ok('Extracting...');
 
   if (isWindows) {
     try {
@@ -190,7 +176,7 @@ async function main() {
       try {
         execSync(`tar -xf "${tempArchive}" -C "${BIN_DIR}"`, { stdio: 'pipe' });
       } catch {
-        err('✗', 'red', 'Failed to extract. Install 7-Zip or enable tar on Windows.');
+        fail('Failed to extract. Install 7-Zip or enable tar on Windows.');
         process.exit(1);
       }
     }
@@ -200,7 +186,7 @@ async function main() {
 
   const binaryPath = path.join(BIN_DIR, binaryName);
   if (!fs.existsSync(binaryPath)) {
-    err('✗', 'red', 'Binary not found after extraction.');
+    fail('Binary not found after extraction.');
     process.exit(1);
   }
 
@@ -210,8 +196,8 @@ async function main() {
 
   fs.unlinkSync(tempArchive);
 
-  err('✓', 'green', 'Installed!');
-  ewrite(`\n  ${color(C.cyan, '▸')} run: ${color(C.bold, 'faceitui')}\n\n`);
+  ok('Installed!');
+  ewrite(`\n  ${color(36, '>')} run: \x1b[1mfaceitui\x1b[0m\n\n`);
 }
 
 main();

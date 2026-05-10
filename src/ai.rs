@@ -26,6 +26,7 @@ pub async fn analyze_player_streaming(
     maps_summary: &str,
     matches_summary: &str,
     tx: mpsc::UnboundedSender<String>,
+    ai_key: Option<String>,
 ) -> Result<()> {
     let system_prompt = "You are a professional CS2 analyst. Provide sharp, insightful commentary in Turkish. Keep it concise (max 5 sentences). Focus on strengths, weaknesses, and notable patterns. Use stats to back your claims.";
 
@@ -50,11 +51,7 @@ pub async fn analyze_player_streaming(
         stream: true,
     };
 
-    let ai_key = std::env::var("AI_API_KEY")
-        .ok()
-        .filter(|k| !k.is_empty())
-        .or_else(|| crate::config::load_ai_api_key())
-        .unwrap_or_default();
+    let ai_key = ai_key.unwrap_or_default();
 
     let client = reqwest::Client::new();
     let mut req = client

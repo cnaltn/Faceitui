@@ -84,6 +84,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
             render_theme_selector(frame, frame.area(), app);
         }
         render_toasts(frame, area, app);
+        if app.show_ai_key_popup {
+            render_ai_key_popup(frame, area, app);
+        }
         return;
     }
 
@@ -113,6 +116,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     render_content(frame, content_rect, app);
     if app.show_theme_selector {
         render_theme_selector(frame, frame.area(), app);
+    }
+    if app.show_ai_key_popup {
+        render_ai_key_popup(frame, frame.area(), app);
     }
     render_toasts(frame, area, app);
 }
@@ -185,6 +191,9 @@ fn render_welcome(frame: &mut Frame, area: Rect, app: &mut App) {
 
     if app.show_help {
         render_help_popup(frame, area, &app.theme);
+    }
+    if app.show_ai_key_popup {
+        render_ai_key_popup(frame, area, app);
     }
 
     render_footer(frame, chunks[2], app);
@@ -537,6 +546,9 @@ fn render_tabs(frame: &mut Frame, area: Rect, app: &mut App) {
         }
     } else if let Some(response) = &app.ai_response {
         render_ai_popup(frame, area, response, &mut app.ai_sv, false, &app.theme);
+    }
+    if app.show_ai_key_popup {
+        render_ai_key_popup(frame, area, app);
     }
 }
 
@@ -1140,6 +1152,62 @@ fn render_help_popup(frame: &mut Frame, area: Rect, theme: &AppTheme) {
         .wrap(Wrap { trim: true })
         .bg(theme.panel_bg());
     frame.render_widget(help, inner);
+}
+
+fn render_ai_key_popup(frame: &mut Frame, area: Rect, app: &mut App) {
+    let popup_area = centered_rect(50, 30, area);
+    frame.render_widget(Clear, popup_area);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(app.theme.accent()))
+        .bg(app.theme.panel_bg())
+        .title(Line::from(vec![
+            Span::styled(" AI API Key ", Style::default().fg(app.theme.accent()).bold()),
+        ]));
+    frame.render_widget(block.clone(), popup_area);
+    let inner = block.inner(popup_area).inner(Margin { horizontal: 2, vertical: 1 });
+
+    let inner_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(1), Constraint::Length(3), Constraint::Min(0)])
+        .split(inner);
+
+    let hint = Paragraph::new(Line::from(vec![
+        Span::styled("Enter your OpenCode AI API key:", Style::default().fg(app.theme.fg())),
+    ])).bg(app.theme.panel_bg());
+    frame.render_widget(hint, inner_chunks[0]);
+
+    let display_text = if app.ai_key_input.is_empty() {
+        "sk-..."
+    } else {
+        &app.ai_key_input
+    };
+    let input = Paragraph::new(display_text)
+        .style(if app.ai_key_input.is_empty() {
+            Style::default().fg(app.theme.muted()).italic()
+        } else {
+            Style::default().fg(app.theme.accent())
+        })
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(app.theme.accent()))
+                .bg(app.theme.bg()),
+        );
+    frame.render_widget(input, inner_chunks[1]);
+
+    let footer_hint = Paragraph::new(Line::from(vec![
+        Span::styled("Enter", Style::default().fg(app.theme.accent())),
+        Span::styled(" submit  ", Style::default().fg(app.theme.muted())),
+        Span::styled("Esc", Style::default().fg(app.theme.accent())),
+        Span::styled(" cancel", Style::default().fg(app.theme.muted())),
+    ])).alignment(Alignment::Center).bg(app.theme.panel_bg());
+    frame.render_widget(footer_hint, inner_chunks[2]);
+
+    frame.set_cursor_position((
+        inner_chunks[1].x + app.ai_key_input.chars().count() as u16 + 1,
+        inner_chunks[1].y + 1,
+    ));
 }
 
 fn render_theme_selector(frame: &mut Frame, area: Rect, app: &mut App) {

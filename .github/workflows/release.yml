@@ -39,6 +39,8 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Build
+        env:
+          FACEIT_API_KEY: ${{ secrets.FACEIT_API_KEY }}
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Rename binary

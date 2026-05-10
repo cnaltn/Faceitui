@@ -92,6 +92,9 @@ pub struct App {
     pub show_theme_selector: bool,
     pub theme_sv: ScrollViewState,
     pub theme_selector_row: usize,
+    pub show_ai_key_popup: bool,
+    pub ai_key_input: String,
+    pub ai_key: Option<String>,
     #[allow(dead_code)]
     ai_rx: Option<mpsc::UnboundedReceiver<String>>,
 }
@@ -111,6 +114,7 @@ impl App {
         let theme_index = theme_names.iter()
             .position(|t| t == &theme_name)
             .unwrap_or(0);
+        let ai_key = crate::config::load_ai_api_key();
         Self {
             theme,
             input: String::new(),
@@ -148,6 +152,9 @@ impl App {
             show_theme_selector: false,
             theme_sv: ScrollViewState::new(),
             theme_selector_row: 0,
+            show_ai_key_popup: false,
+            ai_key_input: String::new(),
+            ai_key,
             ai_rx: None,
         }
     }
@@ -255,6 +262,37 @@ impl App {
                     let rows = 15;
                     self.theme_selector_row = (self.theme_selector_row + rows).min(max);
                     self.theme_sv.set_offset(Position::new(0, self.theme_selector_row as u16));
+                }
+                _ => {}
+            }
+            return Ok(false);
+        }
+
+        if self.show_ai_key_popup {
+            match key.code {
+                KeyCode::Esc => {
+                    self.show_ai_key_popup = false;
+                    self.ai_key_input.clear();
+                }
+                KeyCode::Enter => {
+                    let key = self.ai_key_input.trim().to_string();
+                    if !key.is_empty() {
+                        self.ai_key = Some(key);
+                    }
+                    self.show_ai_key_popup = false;
+                    self.ai_key_input.clear();
+                    if self.ai_key.is_some() {
+                        self.ai_load();
+                    }
+                }
+                KeyCode::Char(c) => {
+                    self.ai_key_input.push(c);
+                }
+                KeyCode::Backspace => {
+                    self.ai_key_input.pop();
+                }
+                KeyCode::Delete => {
+                    self.ai_key_input.clear();
                 }
                 _ => {}
             }
@@ -589,6 +627,12 @@ impl App {
     }
 
     fn ai_load(&mut self) {
+        if self.ai_key.is_none() {
+            self.ai_key_input.clear();
+            self.show_ai_key_popup = true;
+            return;
+        }
+
         let name = self.player_info.as_ref()
             .map(|p| p.nickname.clone())
             .unwrap_or_else(|| "unknown".to_string());
@@ -659,9 +703,10 @@ impl App {
 
         let (tx, rx) = mpsc::unbounded_channel();
         self.ai_rx = Some(rx);
+        let ai_key = self.ai_key.clone();
 
         tokio::spawn(async move {
-            if let Err(e) = crate::ai::analyze_player_streaming(&name, &lifetime, &maps, &matches_text, tx).await {
+            if let Err(e) = crate::ai::analyze_player_streaming(&name, &lifetime, &maps, &matches_text, tx, ai_key).await {
                 eprintln!("AI streaming error: {}", e);
             }
         });

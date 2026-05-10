@@ -9,7 +9,6 @@ pub fn load_api_key() -> Option<String> {
 
 pub fn load_ai_api_key() -> Option<String> {
     std::env::var("AI_API_KEY").ok().filter(|k| !k.is_empty())
-        .or_else(|| load_key("ai_api_key"))
         .or_else(|| option_env!("AI_API_KEY").filter(|k| !k.is_empty()).map(|k| k.to_string()))
 }
 

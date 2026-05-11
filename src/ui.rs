@@ -1274,13 +1274,52 @@ fn render_theme_selector(frame: &mut Frame, area: Rect, app: &mut App) {
     frame.render_widget(block.clone(), popup_area);
     let inner = block.inner(popup_area).inner(Margin { horizontal: 1, vertical: 0 });
 
-    let total = app.theme_names.len();
+    let vert = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(3), Constraint::Min(0)])
+        .split(inner);
+    let search_area = vert[0];
+    let list_area = vert[1];
 
-    let rows: Vec<Row> = app.theme_names.iter()
+    let search_display = if app.theme_search.is_empty() {
+        "type to filter..."
+    } else {
+        &app.theme_search
+    };
+    let search_p = Paragraph::new(search_display)
+        .style(if app.theme_search.is_empty() {
+            Style::default().fg(app.theme.muted()).italic()
+        } else {
+            Style::default().fg(app.theme.fg())
+        })
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(app.theme.muted()))
+            .bg(app.theme.bg())
+        );
+    frame.render_widget(search_p, search_area);
+
+    let filtered: Vec<usize> = if app.theme_search.is_empty() {
+        (0..app.theme_names.len()).collect()
+    } else {
+        let s = app.theme_search.to_lowercase();
+        app.theme_names.iter()
+            .enumerate()
+            .filter(|(_, name)| name.to_lowercase().contains(&s))
+            .map(|(i, _)| i)
+            .collect()
+    };
+
+    app.theme_visible_rows = list_area.height;
+
+    let total = filtered.len();
+
+    let rows: Vec<Row> = filtered.iter()
         .enumerate()
-        .map(|(abs_idx, name)| {
-            let is_current = abs_idx == app.theme_index;
-            let is_selected = abs_idx == app.theme_selector_row;
+        .map(|(list_idx, &full_idx)| {
+            let name = &app.theme_names[full_idx];
+            let is_current = full_idx == app.theme_index;
+            let is_selected = list_idx == app.theme_selector_row;
             let bg = if is_selected {
                 app.theme.highlight_bg()
             } else {
@@ -1302,11 +1341,11 @@ fn render_theme_selector(frame: &mut Frame, area: Rect, app: &mut App) {
     let table = Table::new(rows, &[Constraint::Percentage(100)])
         .column_spacing(0);
 
-    let mut sv = ScrollView::new(Size::new(inner.width, content_height.max(1)))
+    let mut sv = ScrollView::new(Size::new(list_area.width, content_height.max(1)))
         .vertical_scrollbar_visibility(ScrollbarVisibility::Automatic)
         .horizontal_scrollbar_visibility(ScrollbarVisibility::Never);
-    sv.render_widget(table, Rect::new(0, 0, inner.width, content_height));
-    frame.render_stateful_widget(sv, inner, &mut app.theme_sv);
+    sv.render_widget(table, Rect::new(0, 0, list_area.width, content_height));
+    frame.render_stateful_widget(sv, list_area, &mut app.theme_sv);
 }
 
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {

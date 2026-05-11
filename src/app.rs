@@ -93,6 +93,9 @@ pub struct App {
     pub show_theme_selector: bool,
     pub theme_sv: ScrollViewState,
     pub theme_selector_row: usize,
+    pub original_theme_name: String,
+    pub theme_search: String,
+    pub theme_visible_rows: u16,
     pub show_ai_key_popup: bool,
     pub ai_key_input: String,
     pub ai_key: Option<String>,
@@ -154,6 +157,9 @@ impl App {
             show_theme_selector: false,
             theme_sv: ScrollViewState::new(),
             theme_selector_row: 0,
+            original_theme_name: String::new(),
+            theme_search: String::new(),
+            theme_visible_rows: 10,
             show_ai_key_popup: false,
             ai_key_input: String::new(),
             ai_key,
@@ -208,6 +214,39 @@ impl App {
         self.toasts.push(toast);
     }
 
+    fn filtered_theme_indices(&self) -> Vec<usize> {
+        let s = self.theme_search.to_lowercase();
+        if s.is_empty() {
+            (0..self.theme_names.len()).collect()
+        } else {
+            self.theme_names.iter()
+                .enumerate()
+                .filter(|(_, name)| name.to_lowercase().contains(&s))
+                .map(|(i, _)| i)
+                .collect()
+        }
+    }
+
+    fn apply_theme_preview(&mut self) {
+        let filtered = self.filtered_theme_indices();
+        if let Some(&idx) = filtered.get(self.theme_selector_row) {
+            let name = &self.theme_names[idx];
+            self.theme = AppTheme::load(name);
+            self.theme_index = idx;
+        }
+    }
+
+    fn scroll_theme_to_visible(&mut self) {
+        let row = self.theme_selector_row as u16;
+        let vis = self.theme_visible_rows.max(1);
+        let offset = self.theme_sv.offset().y;
+        if row < offset {
+            self.theme_sv.set_offset(Position::new(0, row));
+        } else if row >= offset + vis {
+            self.theme_sv.set_offset(Position::new(0, row - vis + 1));
+        }
+    }
+
     pub fn tab_item_count(&self) -> usize {
         match self.selected_tab {
             0 => self.lifetime_stats.as_ref().and_then(|s| s.lifetime.as_ref()).map(|m| m.len()).unwrap_or(0),
@@ -232,45 +271,84 @@ impl App {
     pub async fn handle_key_event(&mut self, key: KeyEvent) -> AppResult<bool> {
         if self.show_theme_selector {
             match key.code {
-                KeyCode::Esc => self.show_theme_selector = false,
-                KeyCode::Enter => {
-                    if self.theme_selector_row < self.theme_names.len() {
-                        self.theme_index = self.theme_selector_row;
-                        let name = &self.theme_names[self.theme_index];
-                        self.theme = AppTheme::load(name);
-                        self.add_toast(Toast::info(format!("Theme: {}", name)));
+                KeyCode::Esc => {
+                    if !self.original_theme_name.is_empty() {
+                        self.theme = AppTheme::load(&self.original_theme_name);
+                        self.theme_index = self.theme_names.iter()
+                            .position(|t| t == &self.original_theme_name)
+                            .unwrap_or(0);
                     }
+                    self.theme_search.clear();
                     self.show_theme_selector = false;
                 }
+                KeyCode::Enter => {
+                    let filtered = self.filtered_theme_indices();
+                    if let Some(&idx) = filtered.get(self.theme_selector_row) {
+                        let name = &self.theme_names[idx];
+                        self.add_toast(Toast::info(format!("Theme: {}", name)));
+                    }
+                    self.theme_search.clear();
+                    self.show_theme_selector = false;
+                }
+                KeyCode::Char(c) => {
+                    self.theme_search.push(c);
+                    self.theme_selector_row = 0;
+                    self.apply_theme_preview();
+                    self.theme_sv.scroll_to_top();
+                }
+                KeyCode::Backspace => {
+                    self.theme_search.pop();
+                    self.theme_selector_row = 0;
+                    self.apply_theme_preview();
+                    self.theme_sv.scroll_to_top();
+                }
+                KeyCode::Delete => {
+                    self.theme_search.clear();
+                    self.theme_selector_row = 0;
+                    self.apply_theme_preview();
+                    self.theme_sv.scroll_to_top();
+                }
                 KeyCode::Up => {
-                    self.theme_selector_row = self.theme_selector_row.saturating_sub(1);
-                    self.theme_sv.set_offset(Position::new(0, self.theme_selector_row as u16));
+                    if self.theme_selector_row > 0 {
+                        self.theme_selector_row -= 1;
+                        self.apply_theme_preview();
+                        self.scroll_theme_to_visible();
+                    }
                 }
                 KeyCode::Down => {
-                    let max = self.theme_names.len().saturating_sub(1);
+                    let filtered = self.filtered_theme_indices();
+                    let max = filtered.len().saturating_sub(1);
                     if self.theme_selector_row < max {
                         self.theme_selector_row += 1;
+                        self.apply_theme_preview();
+                        self.scroll_theme_to_visible();
                     }
-                    self.theme_sv.set_offset(Position::new(0, self.theme_selector_row as u16));
                 }
                 KeyCode::Home => {
                     self.theme_selector_row = 0;
+                    self.apply_theme_preview();
                     self.theme_sv.scroll_to_top();
                 }
                 KeyCode::End => {
-                    self.theme_selector_row = self.theme_names.len().saturating_sub(1);
+                    let filtered = self.filtered_theme_indices();
+                    self.theme_selector_row = filtered.len().saturating_sub(1);
+                    self.apply_theme_preview();
                     self.theme_sv.scroll_to_bottom();
                 }
                 KeyCode::PageUp => {
-                    let rows = 15.min(self.theme_names.len().saturating_sub(1));
+                    let filtered = self.filtered_theme_indices();
+                    let rows = 15.min(filtered.len().saturating_sub(1));
                     self.theme_selector_row = self.theme_selector_row.saturating_sub(rows);
-                    self.theme_sv.set_offset(Position::new(0, self.theme_selector_row as u16));
+                    self.apply_theme_preview();
+                    self.scroll_theme_to_visible();
                 }
                 KeyCode::PageDown => {
-                    let max = self.theme_names.len().saturating_sub(1);
+                    let filtered = self.filtered_theme_indices();
+                    let max = filtered.len().saturating_sub(1);
                     let rows = 15;
                     self.theme_selector_row = (self.theme_selector_row + rows).min(max);
-                    self.theme_sv.set_offset(Position::new(0, self.theme_selector_row as u16));
+                    self.apply_theme_preview();
+                    self.scroll_theme_to_visible();
                 }
                 _ => {}
             }
@@ -468,6 +546,8 @@ impl App {
                 }
                 KeyCode::Char('t') | KeyCode::Char('T') => {
                     self.show_theme_selector = true;
+                    self.original_theme_name = self.theme_names[self.theme_index].clone();
+                    self.theme_search.clear();
                     self.theme_selector_row = self.theme_index;
                     self.theme_sv = ScrollViewState::new();
                     self.theme_sv.set_offset(Position::new(0, self.theme_index.saturating_sub(7) as u16));

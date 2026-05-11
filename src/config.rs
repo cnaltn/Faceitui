@@ -17,6 +17,24 @@ pub fn load_theme_name() -> Option<String> {
         .or_else(|| load_key("theme"))
 }
 
+pub fn save_theme_name(name: &str) {
+    let dirs = config_dirs();
+
+    for dir in &dirs {
+        for fname in FILE_NAMES {
+            let path = dir.join(fname);
+            if path.exists() {
+                update_or_append_key(&path, "theme", name);
+                return;
+            }
+        }
+    }
+
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let path = cwd.join(FILE_NAMES[0]);
+    let _ = fs::write(&path, format!("theme = \"{}\"\n", name));
+}
+
 fn load_key(target: &str) -> Option<String> {
     let dirs = config_dirs();
 
@@ -50,6 +68,43 @@ fn config_dirs() -> Vec<PathBuf> {
     }
 
     dirs
+}
+
+fn update_or_append_key(path: &PathBuf, key: &str, value: &str) {
+    let content = match fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => {
+            let _ = fs::write(path, format!("{} = \"{}\"\n", key, value));
+            return;
+        }
+    };
+
+    let mut new_content = String::new();
+    let mut found = false;
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if !found && !trimmed.is_empty() && !trimmed.starts_with('#') {
+            if let Some((k, _)) = trimmed.split_once('=') {
+                if k.trim() == key {
+                    new_content.push_str(&format!("{} = \"{}\"\n", key, value));
+                    found = true;
+                    continue;
+                }
+            }
+        }
+        new_content.push_str(line);
+        new_content.push('\n');
+    }
+
+    if !found {
+        if !content.ends_with('\n') {
+            new_content.push('\n');
+        }
+        new_content.push_str(&format!("{} = \"{}\"\n", key, value));
+    }
+
+    let _ = fs::write(path, new_content);
 }
 
 fn try_read(path: &PathBuf, target: &str) -> Option<String> {

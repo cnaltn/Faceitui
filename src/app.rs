@@ -285,6 +285,7 @@ impl App {
                     let filtered = self.filtered_theme_indices();
                     if let Some(&idx) = filtered.get(self.theme_selector_row) {
                         let name = &self.theme_names[idx];
+                        crate::config::save_theme_name(name);
                         self.add_toast(Toast::info(format!("Theme: {}", name)));
                     }
                     self.theme_search.clear();

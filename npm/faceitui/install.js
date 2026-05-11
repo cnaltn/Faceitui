@@ -120,6 +120,8 @@ async function download(url, dest) {
 }
 
 function banner() {
+  const ACCENT = '\x1b[38;2;218;112;44m'; // flexoki-dark orange #da702c
+  const RST = '\x1b[0m';
   const lines = [
     '    ███████╗ █████╗  ██████╗███████╗██╗████████╗██╗   ██╗██╗',
     '    ██╔════╝██╔══██╗██╔════╝██╔════╝██║╚══██╔══╝██║   ██║██║',
@@ -132,12 +134,12 @@ function banner() {
   for (const line of lines) {
     let out = '';
     for (const ch of line) {
-      out += (ch === ' ') ? ' ' : `\x1b[36m${ch}\x1b[0m`;
+      out += (ch === ' ') ? ' ' : `${ACCENT}${ch}${RST}`;
     }
     ewrite(out + '\n');
   }
   ewrite('\n');
-  ewrite(`\x1b[1m     FACEIT CS2 Stats TUI  -  \x1b[2mv${VERSION}\x1b[0m\x1b[0m\n\n`);
+  ewrite(`${ACCENT}     FACEIT CS2 Stats TUI  -  \x1b[2mv${VERSION}${RST}\n\n`);
 }
 
 function platformLine() {
